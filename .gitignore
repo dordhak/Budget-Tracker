@@ -1,0 +1,12 @@
+node_modules
+.next
+.next-verify
+out
+.env
+.env.local
+next-env.d.ts
+*.tsbuildinfo
+# pdfjs worker is copied by postinstall
+public/pdf.worker.min.*
+# never commit real bank statements
+*.pdf
