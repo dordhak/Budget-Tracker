@@ -79,5 +79,25 @@ describe("validateImportRows", () => {
   it("accepts a valid batch", () => {
     const result = validateImportRows([good, { ...good, dedupe_key: "b".repeat(64) }]);
     expect(result.ok && result.rows).toHaveLength(2);
+    expect(result.ok && result.matchEntryIds).toEqual([null, null]);
+  });
+
+  describe("entry matches", () => {
+    const E1 = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    const second = { ...good, dedupe_key: "b".repeat(64) };
+
+    it("returns match ids separately from the row columns", () => {
+      const result = validateImportRows([{ ...good, match_entry_id: E1 }, second]);
+      expect(result).toMatchObject({ ok: true, matchEntryIds: [E1, null] });
+      expect(result.ok && "match_entry_id" in result.rows[0]).toBe(false);
+    });
+
+    it("rejects malformed ids and an entry used twice", () => {
+      expect(validateImportRows([{ ...good, match_entry_id: "x" }])).toEqual({ ok: false, error: "Row 1: invalid entry match." });
+      expect(validateImportRows([{ ...good, match_entry_id: E1 }, { ...second, match_entry_id: E1 }])).toEqual({
+        ok: false,
+        error: "Row 2: an entry can only match one row.",
+      });
+    });
   });
 });

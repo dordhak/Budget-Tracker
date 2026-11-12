@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { UUID_RE, validateImportRows } from "@/lib/import/validate-import";
+import { isMatchable } from "@/lib/entries/match";
+import { UUID_RE, validateImportRows, type ImportRow } from "@/lib/import/validate-import";
 import { createClient } from "@/lib/supabase/server";
 
 export interface AccountOption {
@@ -75,7 +76,7 @@ export async function findExistingKeys(keys: string[]): Promise<Result<string[]>
 export async function importTransactions(
   accountId: string,
   rows: unknown,
-): Promise<Result<{ inserted: number; skipped: number }>> {
+): Promise<Result<{ inserted: number; skipped: number; matched: number; matchFailed: number }>> {
   if (typeof accountId !== "string" || !UUID_RE.test(accountId)) return { ok: false, error: "Pick an account first." };
   const validated = validateImportRows(rows);
   if (!validated.ok) return { ok: false, error: validated.error };
@@ -95,7 +96,7 @@ export async function importTransactions(
   const { data, error } = await supabase
     .from("transactions")
     .upsert(payload, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true })
-    .select("id");
+    .select("id, dedupe_key");
 
   if (error) {
     console.error("Import failed", error);
@@ -103,7 +104,119 @@ export async function importTransactions(
   }
 
   const inserted = data?.length ?? 0;
+  const links = await linkEntries(
+    supabase,
+    user.id,
+    validated.rows,
+    validated.matchEntryIds,
+    new Map((data ?? []).map((r) => [r.dedupe_key as string, r.id as string])),
+  );
+
   revalidatePath("/");
+  revalidatePath("/statements");
   revalidatePath("/expenses");
-  return { ok: true, data: { inserted, skipped: payload.length - inserted } };
+  revalidatePath("/entries");
+  return { ok: true, data: { inserted, skipped: payload.length - inserted, ...links } };
+}
+
+type Supabase = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Links matched entries to the statement rows just inserted. Every pair is
+ * re-checked here (the client only proposes): same user, unmatched bank entry,
+ * same type, exact amount, at most MATCH_WINDOW_DAYS apart. Rows that were
+ * skipped as duplicates have no new id and aren't linked.
+ */
+async function linkEntries(
+  supabase: Supabase,
+  userId: string,
+  rows: ImportRow[],
+  matchEntryIds: Array<string | null>,
+  insertedIdByKey: Map<string, string>,
+): Promise<{ matched: number; matchFailed: number }> {
+  const proposals = rows
+    .map((row, i) => ({ row, entryId: matchEntryIds[i], txId: insertedIdByKey.get(row.dedupe_key) }))
+    .filter((p): p is { row: ImportRow; entryId: string; txId: string } => Boolean(p.entryId && p.txId));
+  if (proposals.length === 0) return { matched: 0, matchFailed: 0 };
+
+  const { data: entries, error } = await supabase
+    .from("entries")
+    .select("id, date, amount, type")
+    .eq("user_id", userId)
+    .eq("payment_method", "bank")
+    .is("transaction_id", null)
+    .in(
+      "id",
+      proposals.map((p) => p.entryId),
+    );
+  if (error) {
+    console.error("Match lookup failed", error);
+    return { matched: 0, matchFailed: proposals.length };
+  }
+  const byId = new Map((entries ?? []).map((e) => [e.id as string, e]));
+
+  let matched = 0;
+  for (const { row, entryId, txId } of proposals) {
+    const e = byId.get(entryId);
+    const ok =
+      e &&
+      isMatchable(
+        { date: row.date, type: row.type, amountCents: Math.round(row.amount * 100) },
+        { id: entryId, date: e.date as string, type: e.type as "income" | "expense", amountCents: Math.round(Number(e.amount) * 100) },
+      );
+    if (!ok) continue;
+    // `transaction_id is null` guards against a concurrent link; the DB trigger re-checks owner and type.
+    const { data: linked } = await supabase
+      .from("entries")
+      .update({ transaction_id: txId })
+      .eq("id", entryId)
+      .eq("user_id", userId)
+      .is("transaction_id", null)
+      .select("id");
+    if (linked?.length) matched++;
+  }
+  return { matched, matchFailed: proposals.length - matched };
+}
+
+export interface MatchCandidate {
+  id: string;
+  date: string;
+  amount: number;
+  type: "income" | "expense";
+  merchant: string | null;
+  category: string;
+}
+
+/** Unmatched bank entries in [from, to] (the statement's dates widened by the match window). */
+export async function findMatchCandidates(from: string, to: string): Promise<Result<MatchCandidate[]>> {
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  if (typeof from !== "string" || typeof to !== "string" || !iso.test(from) || !iso.test(to) || from > to) {
+    return { ok: false, error: "Invalid date range." };
+  }
+  const { supabase, user } = await requireUser();
+  if (!user) return { ok: false, error: "Your session expired. Please sign in again." };
+
+  const { data, error } = await supabase
+    .from("entries")
+    .select("id, date, amount, type, merchant, category")
+    .eq("user_id", user.id)
+    .eq("payment_method", "bank")
+    .is("transaction_id", null)
+    .gte("date", from)
+    .lte("date", to)
+    .order("date")
+    .limit(2000);
+  if (error) return { ok: false, error: "Could not load your entries for matching." };
+
+  return {
+    ok: true,
+    data: (data ?? []).map((e) => ({
+      id: e.id as string,
+      date: e.date as string,
+      amount: Number(e.amount),
+      type: e.type as "income" | "expense",
+      merchant: (e.merchant as string | null) ?? null,
+      category: e.category as string,
+    })),
+  };
 }

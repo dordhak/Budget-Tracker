@@ -19,7 +19,21 @@ import {
 } from "@/lib/import";
 import { extractPositionedText } from "@/lib/pdf/extract-text";
 import { cn } from "@/lib/utils";
-import { createAccount, findExistingKeys, importTransactions, type AccountOption } from "./actions";
+import {
+  chooseMatch,
+  MATCH_WINDOW_DAYS,
+  matchRows,
+  unmatchedInPeriod,
+  type RowMatch,
+} from "@/lib/entries/match";
+import {
+  createAccount,
+  findExistingKeys,
+  findMatchCandidates,
+  importTransactions,
+  type AccountOption,
+  type MatchCandidate,
+} from "./actions";
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const INSERT_CHUNK = 200;
@@ -47,7 +61,24 @@ interface Check {
   existing: Set<string>;
 }
 
-type ImportOutcome = { inserted: number; skipped: number };
+type ImportOutcome = { inserted: number; skipped: number; matched: number; matchFailed: number };
+
+interface Matching {
+  candidates: Map<string, MatchCandidate>;
+  info: Map<number, RowMatch>;
+  /** Statement period used for "not on statement" (first row date .. statement date). */
+  period: { from: string; to: string };
+}
+
+const shiftDays = (iso: string, days: number) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+const shortDate = (iso: string) =>
+  new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
+const candidateLabel = (c: MatchCandidate) =>
+  `${c.merchant || c.category} · ${shortDate(c.date)} · RM ${c.amount.toFixed(2)}`;
 
 export function StatementImporter({
   initialAccounts,
@@ -66,6 +97,9 @@ export function StatementImporter({
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
+  const [matching, setMatching] = useState<Matching | null>(null);
+  /** Row index -> chosen entry id (null = not matched). */
+  const [selection, setSelection] = useState<Map<number, string | null>>(new Map());
   const [isPending, startTransition] = useTransition();
 
   // Keys depend on the account, so (re)compute them and look up duplicates whenever either changes.
@@ -86,7 +120,33 @@ export function StatementImporter({
         return;
       }
       const existing = new Set(res.data);
+
+      // Entries you logged yourself that these statement rows may correspond to.
+      setStatus("Matching against your entries…");
+      const txns = parsed.statement.transactions;
+      const dates = txns.map((t) => t.date).sort();
+      const period = { from: dates[0], to: parsed.statement.statementDate ?? dates[dates.length - 1] };
+      const cand = await findMatchCandidates(
+        shiftDays(dates[0], -MATCH_WINDOW_DAYS),
+        shiftDays(dates[dates.length - 1], MATCH_WINDOW_DAYS),
+      );
+      if (cancelled) return;
+      if (!cand.ok) {
+        setError(cand.error);
+        setStatus("");
+        return;
+      }
+      const newRows = txns
+        .filter((_, i) => !existing.has(keys[i]))
+        .map((t) => ({ index: t.index, date: t.date, type: t.type, amountCents: t.amountCents }));
+      const info = matchRows(
+        newRows,
+        cand.data.map((c) => ({ id: c.id, date: c.date, type: c.type, amountCents: Math.round(c.amount * 100) })),
+      );
+
       setCheck({ accountId, keys, existing });
+      setMatching({ candidates: new Map(cand.data.map((c) => [c.id, c])), info, period });
+      setSelection(new Map([...info].map(([index, m]) => [index, m.entryId])));
       setExcluded(new Set());
       setStatus("");
     })().catch((err) => {
@@ -101,18 +161,43 @@ export function StatementImporter({
     if (!parsed || !check) return [];
     return parsed.statement.transactions.map((t, i) => {
       const duplicate = check.existing.has(check.keys[i]);
-      return { t, key: check.keys[i], category: parsed.categories[i], duplicate, selected: !duplicate && !excluded.has(i) };
+      const match = matching?.info.get(t.index);
+      return {
+        t,
+        key: check.keys[i],
+        category: parsed.categories[i],
+        duplicate,
+        selected: !duplicate && !excluded.has(i),
+        matchStatus: match?.status ?? "none",
+        candidates: match?.candidates ?? [],
+        matchedEntryId: selection.get(t.index) ?? null,
+      };
     });
-  }, [parsed, check, excluded]);
+  }, [parsed, check, excluded, matching, selection]);
 
-  const counts = useMemo(
-    () => ({
+  const counts = useMemo(() => {
+    const matchedRows = rows.filter((r) => r.selected && r.matchedEntryId);
+    return {
       selected: rows.filter((r) => r.selected).length,
       duplicates: rows.filter((r) => r.duplicate).length,
       flagged: rows.filter((r) => r.t.flags.length > 0).length,
-    }),
-    [rows],
-  );
+      matched: matchedRows.length,
+      toConfirm: matchedRows.filter((r) => r.matchStatus === "suggested").length,
+    };
+  }, [rows]);
+
+  // Bank entries dated in this statement's period that no row will be linked to.
+  const notOnStatement = useMemo(() => {
+    if (!matching) return [];
+    const used = new Set(rows.filter((r) => r.selected && r.matchedEntryId).map((r) => r.matchedEntryId!));
+    const all = [...matching.candidates.values()].map((c) => ({
+      id: c.id,
+      date: c.date,
+      type: c.type,
+      amountCents: Math.round(c.amount * 100),
+    }));
+    return unmatchedInPeriod(all, used, matching.period).map((e) => matching.candidates.get(e.id)!);
+  }, [matching, rows]);
 
   const failedChecks = parsed?.statement.checks.filter((c) => c.ok === false) ?? [];
   const canImport = counts.selected > 0 && (failedChecks.length === 0 || acknowledged) && !isPending && !outcome;
@@ -182,11 +267,12 @@ export function StatementImporter({
         merchant: r.t.merchant,
         balance: r.t.balance,
         dedupe_key: r.key,
+        match_entry_id: r.matchedEntryId,
       }));
 
     setError("");
     startTransition(async () => {
-      const total: ImportOutcome = { inserted: 0, skipped: 0 };
+      const total: ImportOutcome = { inserted: 0, skipped: 0, matched: 0, matchFailed: 0 };
       for (let i = 0; i < payload.length; i += INSERT_CHUNK) {
         setStatus(`Saving ${Math.min(i + INSERT_CHUNK, payload.length)} of ${payload.length}…`);
         const res = await importTransactions(check.accountId, payload.slice(i, i + INSERT_CHUNK));
@@ -202,6 +288,8 @@ export function StatementImporter({
         }
         total.inserted += res.data.inserted;
         total.skipped += res.data.skipped;
+        total.matched += res.data.matched;
+        total.matchFailed += res.data.matchFailed;
       }
       setStatus("");
       setOutcome(total);
@@ -292,7 +380,8 @@ export function StatementImporter({
             <CardDescription>
               {parsed.fileName}: {parsed.statement.transactions.length} transactions, statement date{" "}
               {parsed.statement.statementDate ?? "unknown"}. {counts.duplicates} already imported, {counts.flagged} to
-              review.
+              review, {counts.matched} matched to your entries
+              {counts.toConfirm > 0 && ` (${counts.toConfirm} to confirm)`}.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -332,6 +421,34 @@ export function StatementImporter({
               </label>
             )}
 
+            {counts.toConfirm > 0 && (
+              <p className="rounded-md border border-sky-600/30 bg-sky-50 p-3 text-sm text-sky-900">
+                {counts.toConfirm} row{counts.toConfirm === 1 ? " has" : "s have"} more than one possible entry. The
+                closest date is pre-selected; check the &ldquo;Your entry&rdquo; column.
+              </p>
+            )}
+
+            {notOnStatement.length > 0 && (
+              <details className="rounded-md border border-amber-600/30 bg-amber-50 p-3 text-sm text-amber-900">
+                <summary className="cursor-pointer font-medium">
+                  {notOnStatement.length} of your bank entries in this period {notOnStatement.length === 1 ? "isn't" : "aren't"}{" "}
+                  on this statement
+                </summary>
+                <p className="mt-2">
+                  Check the amount or date, whether it was paid in cash, or whether it went through another account.
+                  They stay unmatched and will appear as &ldquo;Not on statement&rdquo; on your budget dashboard.
+                </p>
+                <ul className="mt-2 list-disc space-y-0.5 pl-5">
+                  {notOnStatement.map((c) => (
+                    <li key={c.id}>
+                      {c.type === "income" ? "Income: " : ""}
+                      {candidateLabel(c)}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
             <Table>
               <TableHeader>
                 <TableRow>
@@ -342,11 +459,12 @@ export function StatementImporter({
                   <TableHead>Description</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Your entry</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(({ t, category, duplicate, selected }) => (
+                {rows.map(({ t, category, duplicate, selected, candidates, matchedEntryId, matchStatus }) => (
                   <TableRow
                     key={t.index}
                     className={cn(duplicate && "text-muted-foreground", !duplicate && t.flags.length > 0 && "bg-amber-50")}
@@ -381,6 +499,36 @@ export function StatementImporter({
                       {t.type === "income" ? "+" : "−"}
                       {formatCents(t.amountCents)}
                     </TableCell>
+                    <TableCell className="min-w-44 text-xs">
+                      {duplicate || candidates.length === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <div className="space-y-1">
+                          <Select
+                            className={cn("h-8 text-xs", matchStatus === "suggested" && matchedEntryId && "border-sky-600")}
+                            value={matchedEntryId ?? ""}
+                            disabled={!selected || isPending || Boolean(outcome)}
+                            onChange={(e) => setSelection((s) => chooseMatch(s, t.index, e.target.value || null))}
+                            aria-label={`Matching entry for ${t.date} ${formatCents(t.amountCents)}`}
+                          >
+                            <option value="">Not matched</option>
+                            {candidates.map((id) => {
+                              const c = matching?.candidates.get(id);
+                              return c ? (
+                                <option key={id} value={id}>
+                                  {candidateLabel(c)}
+                                </option>
+                              ) : null;
+                            })}
+                          </Select>
+                          {matchedEntryId && (
+                            <span className={matchStatus === "auto" ? "text-emerald-700" : "text-sky-800"}>
+                              {matchStatus === "auto" ? "Matched" : "Check this match"}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-xs">
                       {duplicate ? "Already imported" : selected ? "New" : "Skipped"}
                     </TableCell>
@@ -393,8 +541,15 @@ export function StatementImporter({
               <div role="status" className="space-y-2 rounded-md border border-emerald-600/40 bg-emerald-50 p-4 text-sm">
                 <p className="font-medium text-emerald-800">
                   Imported {outcome.inserted} transaction{outcome.inserted === 1 ? "" : "s"}
-                  {outcome.skipped > 0 && `, skipped ${outcome.skipped} already in your account`}.
+                  {outcome.skipped > 0 && `, skipped ${outcome.skipped} already in your account`}
+                  {outcome.matched > 0 && `, matched ${outcome.matched} to your entries`}.
                 </p>
+                {outcome.matchFailed > 0 && (
+                  <p className="text-amber-800">
+                    {outcome.matchFailed} match{outcome.matchFailed === 1 ? "" : "es"} couldn&apos;t be linked (the
+                    entry changed or was already matched). You can link them from the entry page.
+                  </p>
+                )}
                 <p className="flex gap-4">
                   <Link href="/" className="underline underline-offset-4">
                     View dashboard

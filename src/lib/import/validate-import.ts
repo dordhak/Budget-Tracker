@@ -16,6 +16,8 @@ export interface ImportRowInput {
   merchant: unknown;
   balance: unknown;
   dedupe_key: unknown;
+  /** Optional: id of one of your entries this statement row should be linked to. */
+  match_entry_id?: unknown;
 }
 
 export interface ImportRow {
@@ -73,18 +75,31 @@ export function validateImportRow(input: ImportRowInput): ImportRow | string {
 
 export function validateImportRows(
   rows: unknown,
-): { ok: true; rows: ImportRow[] } | { ok: false; error: string } {
+):
+  | { ok: true; rows: ImportRow[]; matchEntryIds: Array<string | null> }
+  | { ok: false; error: string } {
   if (!Array.isArray(rows) || rows.length === 0) return { ok: false, error: "No rows to import." };
   if (rows.length > MAX_ROWS_PER_REQUEST) return { ok: false, error: `Send at most ${MAX_ROWS_PER_REQUEST} rows at a time.` };
 
   const valid: ImportRow[] = [];
+  const matchEntryIds: Array<string | null> = [];
   const keys = new Set<string>();
+  const matched = new Set<string>();
   for (let i = 0; i < rows.length; i++) {
-    const result = validateImportRow((rows[i] ?? {}) as ImportRowInput);
+    const input = (rows[i] ?? {}) as ImportRowInput;
+    const result = validateImportRow(input);
     if (typeof result === "string") return { ok: false, error: `Row ${i + 1}: ${result}.` };
     if (keys.has(result.dedupe_key)) return { ok: false, error: `Row ${i + 1}: duplicate dedupe key in request.` };
     keys.add(result.dedupe_key);
+
+    const match = input.match_entry_id ?? null;
+    if (match !== null) {
+      if (typeof match !== "string" || !UUID_RE.test(match)) return { ok: false, error: `Row ${i + 1}: invalid entry match.` };
+      if (matched.has(match)) return { ok: false, error: `Row ${i + 1}: an entry can only match one row.` };
+      matched.add(match);
+    }
     valid.push(result);
+    matchEntryIds.push(match as string | null);
   }
-  return { ok: true, rows: valid };
+  return { ok: true, rows: valid, matchEntryIds };
 }
