@@ -1,127 +1,239 @@
-import { Scale, TrendingDown, TrendingUp } from "lucide-react";
+import { CircleDollarSign, Plus, Scale, TrendingDown, TrendingUp } from "lucide-react";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { CategoryDonut } from "@/components/charts/category-donut";
+import { DailyLine } from "@/components/charts/daily-line";
+import { MonthlyBars } from "@/components/charts/monthly-bars";
 import { BudgetBar } from "@/components/dashboard/budget-bar";
 import { CategoryBudgetForm } from "@/components/dashboard/category-budget-form";
 import { CategoryBudgetList, type BudgetRow } from "@/components/dashboard/category-budget-list";
 import { OverallLimitForm } from "@/components/dashboard/overall-limit-form";
-import { SpendingChart } from "@/components/dashboard/spending-chart";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { MatchBadge } from "@/components/entries/match-badge";
+import { MonthPicker } from "@/components/month-picker";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { roundMoney, sumLimits } from "@/lib/budget";
-import { summarizeSpending, type DailySpendingRow } from "@/lib/spending";
+import { sumLimits } from "@/lib/budget";
+import {
+  budgetItems,
+  categoryBreakdown,
+  dailySeries,
+  entryStatus,
+  monthlySeries,
+  monthTotals,
+} from "@/lib/dashboard/aggregate";
+import { loadWindow, resolveMonth } from "@/lib/dashboard/load";
+import { entryMatchState } from "@/lib/entries/entries-query";
+import { todayIso } from "@/lib/entries/validate-entry";
+import { monthLabel } from "@/lib/month";
+import { summarizeSpending } from "@/lib/spending";
 import { createClient } from "@/lib/supabase/server";
-import { formatMYR } from "@/lib/utils";
+import { cn, formatMYR } from "@/lib/utils";
 
-const monthLabel = () =>
-  new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric", timeZone: "Asia/Kuala_Lumpur" }).format(
-    new Date(),
-  );
+export const metadata: Metadata = { title: "Budget · Budget Tracker" };
 
-export default async function DashboardPage() {
+const dayFmt = new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", timeZone: "UTC" });
+
+export default async function BudgetDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { month, current } = resolveMonth((await searchParams).month);
   const supabase = await createClient();
 
-  // Independent queries run in parallel; RLS scopes each one to the signed-in user.
-  const [totalsRes, budgetsRes, settingsRes, rulesRes, dailyRes] = await Promise.all([
-    supabase.rpc("dashboard_totals").single<{
-      total_income: number;
-      total_expenses: number;
-      month_expenses: number;
-    }>(),
+  const [data, budgetsRes, settingsRes, rulesRes] = await Promise.all([
+    loadWindow(supabase, month),
     supabase.from("budgets").select("id, category, monthly_limit").order("category"),
     supabase.from("settings").select("overall_monthly_limit").maybeSingle(),
     supabase.from("category_rules").select("category"),
-    supabase.rpc("daily_spending", { days: 30 }),
   ]);
-
-  const failed = [totalsRes, budgetsRes, settingsRes, dailyRes].find((r) => r.error);
-  if (failed?.error) {
-    // Surfaces in the route error boundary; details stay in the server logs.
-    console.error("Dashboard query failed", failed.error);
-    throw new Error("Could not load your dashboard data.");
+  if (budgetsRes.error || settingsRes.error) {
+    console.error("Budget query failed", budgetsRes.error ?? settingsRes.error);
+    throw new Error("Could not load your budgets.");
   }
 
-  const totals = {
-    income: Number(totalsRes.data?.total_income ?? 0),
-    expenses: Number(totalsRes.data?.total_expenses ?? 0),
-    month: Number(totalsRes.data?.month_expenses ?? 0),
-  };
-  const balance = roundMoney(totals.income - totals.expenses);
+  // Each purchase once: your entries + statement rows you didn't log.
+  const items = budgetItems(data.entries, data.transactions, data.linkedTxIds);
+  const totals = monthTotals(items, month);
+  const slices = categoryBreakdown(items, month);
+  const spentByCategory = new Map(categoryBreakdown(items, month, Number.POSITIVE_INFINITY).map((s) => [s.category, s.cents]));
+  const series = monthlySeries(items, data.months);
+  const days = dailySeries(items, month, month === current ? todayIso() : undefined);
+  const status = entryStatus(data.entries, month, data.coveredUntil);
+  const unlogged = data.transactions.filter((t) => t.date.startsWith(month) && !data.linkedTxIds.has(t.id)).length;
+
+  const spending = summarizeSpending(days.map((d) => ({ day: d.day, total: d.cents / 100 })));
+  const dailySummary =
+    spending.total === 0
+      ? `No spending recorded in ${monthLabel(month)}.`
+      : `Spent ${formatMYR(spending.total)} in ${monthLabel(month)}, about ${formatMYR(spending.average)} a day.` +
+        (spending.peak ? ` Highest day: ${spending.peak.label}, ${formatMYR(spending.peak.total)}.` : "");
 
   const budgets: BudgetRow[] = (budgetsRes.data ?? []).map((b) => ({
     id: b.id as string,
     category: b.category as string,
     monthly_limit: Number(b.monthly_limit),
   }));
-  const categoryTotal = sumLimits(budgets);
+  const categoryLimitTotal = sumLimits(budgets);
   const rawOverall = settingsRes.data?.overall_monthly_limit;
   const overallLimit = rawOverall == null ? null : Number(rawOverall);
-
-  // Shape is fixed by the daily_spending() SQL function; summarizeSpending re-validates values.
-  const spending = summarizeSpending(dailyRes.data as DailySpendingRow[] | null);
-  const chartSummary =
-    spending.total === 0
-      ? "No spending recorded in the last 30 days."
-      : `Spent ${formatMYR(spending.total)} over the last 30 days, about ${formatMYR(spending.average)} a day.` +
-        (spending.peak ? ` Highest day: ${spending.peak.label}, ${formatMYR(spending.peak.total)}.` : "");
+  const spent = totals.expenseCents / 100;
+  const safeToSpend = overallLimit === null ? null : overallLimit - spent;
 
   const budgeted = new Set(budgets.map((b) => b.category));
-  const suggestions = [...new Set((rulesRes.data ?? []).map((r) => r.category as string))]
+  const suggestions = [...new Set([...(rulesRes.data ?? []).map((r) => r.category as string), ...spentByCategory.keys()])]
     .filter((c) => !budgeted.has(c))
     .sort();
 
+  const recent = data.entries.filter((e) => e.date.startsWith(month)).slice(0, 6);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">All-time totals, and your budget for {monthLabel()}.</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Budget</h1>
+          <p className="text-sm text-muted-foreground">
+            {monthLabel(month)}: your entries plus statement rows you didn&apos;t log, each counted once.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <MonthPicker basePath="/" month={month} current={current} />
+          <Button asChild>
+            <Link href="/entries/new">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add entry
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      <section aria-label="Totals" className="grid gap-4 sm:grid-cols-3">
-        <StatCard title="Total income" value={totals.income} icon={TrendingUp} tone="positive" />
-        <StatCard title="Total expenses" value={totals.expenses} icon={TrendingDown} />
+      <section aria-label="Month totals" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Income" value={totals.incomeCents / 100} icon={TrendingUp} tone="positive" />
+        <StatCard title="Expenses" value={spent} icon={TrendingDown} />
         <StatCard
-          title="Current balance"
-          value={balance}
+          title="Balance"
+          value={totals.netCents / 100}
           icon={Scale}
-          tone={balance < 0 ? "negative" : "default"}
+          tone={totals.netCents < 0 ? "negative" : "default"}
           hint="Income minus expenses"
+        />
+        <StatCard
+          title={month === current ? "Safe to spend" : "Left of limit"}
+          value={safeToSpend}
+          icon={CircleDollarSign}
+          tone={safeToSpend !== null && safeToSpend < 0 ? "negative" : "positive"}
+          emptyText="Set an overall limit below"
+          hint={overallLimit !== null ? `Overall limit ${formatMYR(overallLimit)}` : undefined}
         />
       </section>
 
+      {(status.awaiting > 0 || status.notOnStatement > 0 || unlogged > 0) && (
+        <ul className="flex flex-wrap gap-2 text-sm" aria-label="Matching status">
+          {status.awaiting > 0 && (
+            <li>
+              <Link
+                href={`/entries?month=${month}&status=awaiting`}
+                className="inline-flex rounded-full border border-amber-600/30 bg-amber-50 px-3 py-1 text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {status.awaiting} {status.awaiting === 1 ? "entry" : "entries"} awaiting statement
+              </Link>
+            </li>
+          )}
+          {status.notOnStatement > 0 && (
+            <li>
+              <Link
+                href={`/entries?month=${month}&status=awaiting`}
+                className="inline-flex rounded-full border border-destructive/30 bg-red-50 px-3 py-1 text-red-800 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {status.notOnStatement} not on statement
+              </Link>
+            </li>
+          )}
+          {unlogged > 0 && (
+            <li>
+              <Link
+                href="/statements"
+                className="inline-flex rounded-full border px-3 py-1 text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {unlogged} statement {unlogged === 1 ? "row" : "rows"} you didn&apos;t log (included)
+              </Link>
+            </li>
+          )}
+        </ul>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Spending by category</CardTitle>
+            <CardDescription>{monthLabel(month)}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CategoryDonut slices={slices} totalCents={totals.expenseCents} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Income vs expenses</CardTitle>
+            <CardDescription>Last 6 months</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MonthlyBars points={series} />
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Budget for {monthLabel()}</CardTitle>
-          <CardDescription>Spent this month so far: {formatMYR(totals.month)}</CardDescription>
+          <CardTitle className="text-base">Daily spending</CardTitle>
+          <CardDescription>{dailySummary}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <BudgetBar
-            id="bar-categories"
-            label="Against category limits"
-            spent={totals.month}
-            limit={categoryTotal}
-            emptyText="Add category limits below to track spending against their total."
-          />
-          <BudgetBar
-            id="bar-overall"
-            label="Against overall monthly limit"
-            spent={totals.month}
-            limit={overallLimit}
-            emptyText="Set an overall monthly limit below to track it here."
-          />
+        <CardContent>
+          {spending.total === 0 ? (
+            <p className="flex h-32 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+              Nothing spent yet this month.
+            </p>
+          ) : (
+            <DailyLine points={days} summary={dailySummary} />
+          )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Spending, last 30 days</CardTitle>
-          <CardDescription>{chartSummary}</CardDescription>
+          <CardTitle className="text-base">Budget for {monthLabel(month)}</CardTitle>
+          <CardDescription>Spent so far: {formatMYR(spent)}</CardDescription>
         </CardHeader>
-        <CardContent>
-          {spending.total === 0 ? (
-            <p className="flex h-40 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-              Import a statement to see your daily spending here.
-            </p>
-          ) : (
-            <SpendingChart points={spending.points} summary={chartSummary} />
+        <CardContent className="space-y-6">
+          <BudgetBar
+            id="bar-overall"
+            label="Against overall monthly limit"
+            spent={spent}
+            limit={overallLimit}
+            emptyText="Set an overall monthly limit below to track it here."
+          />
+          <BudgetBar
+            id="bar-categories"
+            label="Against the sum of category limits"
+            spent={spent}
+            limit={categoryLimitTotal}
+            emptyText="Add category limits below to track spending against their total."
+          />
+          {budgets.length > 0 && (
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="text-sm font-medium">Per category</h3>
+              {budgets.map((b) => (
+                <BudgetBar
+                  key={b.id}
+                  id={`bar-cat-${b.id}`}
+                  label={b.category}
+                  spent={(spentByCategory.get(b.category) ?? 0) / 100}
+                  limit={b.monthly_limit}
+                  emptyText="No limit"
+                />
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -135,12 +247,11 @@ export default async function DashboardPage() {
             <OverallLimitForm current={overallLimit} />
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Category limits</CardTitle>
             <CardDescription>
-              Total: {formatMYR(categoryTotal)}. Saving an existing name updates its limit.
+              Total: {formatMYR(categoryLimitTotal)}. Saving an existing name updates its limit.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -149,6 +260,41 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-base">Recent entries</CardTitle>
+          <Link href={`/entries?month=${month}`} className="text-sm underline underline-offset-4">
+            View all
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {recent.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No entries in {monthLabel(month)}.{" "}
+              <Link href="/entries/new" className="underline underline-offset-4">
+                Add one
+              </Link>
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {recent.map((e) => (
+                <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                  <Link href={`/entries/${e.id}`} className="min-w-0 flex-1 truncate font-medium underline-offset-4 hover:underline">
+                    {e.merchant || e.category}
+                  </Link>
+                  <span className="text-muted-foreground">{dayFmt.format(new Date(`${e.date}T00:00:00Z`))}</span>
+                  <MatchBadge state={entryMatchState(e)} />
+                  <span className={cn("w-28 text-right tabular-nums", e.type === "income" && "text-emerald-700")}>
+                    {e.type === "income" ? "+" : "−"}
+                    {formatMYR(Number(e.amount))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

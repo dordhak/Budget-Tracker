@@ -84,4 +84,5 @@ function revalidate(id: string) {
   revalidatePath(`/expenses/${id}`);
   revalidatePath("/expenses");
   revalidatePath("/");
+  revalidatePath("/statements");
 }

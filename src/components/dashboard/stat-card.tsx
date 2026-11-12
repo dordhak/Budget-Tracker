@@ -4,13 +4,15 @@ import { cn, formatMYR } from "@/lib/utils";
 
 interface StatCardProps {
   title: string;
-  value: number;
+  /** Amount in RM; null shows `emptyText` instead. */
+  value: number | null;
   icon: LucideIcon;
   hint?: string;
+  emptyText?: string;
   tone?: "default" | "positive" | "negative";
 }
 
-export function StatCard({ title, value, icon: Icon, hint, tone = "default" }: StatCardProps) {
+export function StatCard({ title, value, icon: Icon, hint, emptyText = "—", tone = "default" }: StatCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -20,15 +22,19 @@ export function StatCard({ title, value, icon: Icon, hint, tone = "default" }: S
         <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
       </CardHeader>
       <CardContent>
-        <p
-          className={cn(
-            "text-2xl font-semibold tabular-nums",
-            tone === "positive" && "text-emerald-700",
-            tone === "negative" && "text-destructive",
-          )}
-        >
-          {formatMYR(value)}
-        </p>
+        {value === null ? (
+          <p className="text-sm text-muted-foreground">{emptyText}</p>
+        ) : (
+          <p
+            className={cn(
+              "text-2xl font-semibold tabular-nums",
+              tone === "positive" && "text-emerald-700",
+              tone === "negative" && "text-destructive",
+            )}
+          >
+            {formatMYR(value)}
+          </p>
+        )}
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
