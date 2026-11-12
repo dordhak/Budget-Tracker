@@ -25,6 +25,27 @@ function loadPdfjs() {
   return pdfjsPromise;
 }
 
+/**
+ * Renders one page to a canvas (for OCR of scanned PDFs that have no text layer).
+ * `scale` 2 ≈ 144 dpi, enough for Tesseract on receipt-sized text.
+ */
+export async function renderPdfPage(file: ArrayBuffer, pageNo = 1, scale = 2): Promise<HTMLCanvasElement> {
+  const pdfjs = await loadPdfjs();
+  const loadingTask = pdfjs.getDocument({ data: new Uint8Array(file) });
+  try {
+    const doc = await loadingTask.promise;
+    const page = await doc.getPage(Math.min(Math.max(pageNo, 1), doc.numPages));
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvas, viewport }).promise;
+    return canvas;
+  } finally {
+    await loadingTask.destroy();
+  }
+}
+
 export async function extractPositionedText(file: ArrayBuffer): Promise<PositionedText[]> {
   const pdfjs = await loadPdfjs();
   const loadingTask = pdfjs.getDocument({ data: new Uint8Array(file) });
