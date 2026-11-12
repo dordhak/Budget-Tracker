@@ -69,6 +69,7 @@ function copyCookies(from: NextResponse, to: NextResponse) {
 export const config = {
   matcher: [
     // Everything except Next internals and static files (including the pdf worker).
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mjs)$).*)",
+    // Also skips the self-hosted OCR assets under /tesseract (public, several MB each).
+    "/((?!_next/static|_next/image|favicon.ico|tesseract/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mjs)$).*)",
   ],
 };

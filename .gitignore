@@ -6,7 +6,8 @@ out
 .env.local
 next-env.d.ts
 *.tsbuildinfo
-# pdfjs worker is copied by postinstall
+# Browser assets copied from node_modules by postinstall (scripts/copy-vendor-assets.mjs)
 public/pdf.worker.min.*
+public/tesseract/
 # never commit real bank statements
 *.pdf

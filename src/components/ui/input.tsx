@@ -1,7 +1,8 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-function Input({ className, type, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+// React 19: `ref` is a regular prop, so ComponentProps<"input"> forwards it.
+function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
     <input
       type={type}

@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 // Native <select> styled like shadcn. Keeps full keyboard/screen-reader support
 // and works without client JS inside plain forms.
-function Select({ className, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+function Select({ className, children, ...props }: React.ComponentProps<"select">) {
   return (
     <select
       className={cn(
