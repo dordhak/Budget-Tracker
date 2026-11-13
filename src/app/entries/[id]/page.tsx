@@ -135,7 +135,7 @@ export default async function EntryDetailPage({ params }: { params: Promise<{ id
             <MatchBadge state={entryMatchState(entry)} />
           </p>
         </div>
-        <p className={cn("text-3xl font-semibold tabular-nums", entry.type === "income" && "text-emerald-700")}>
+        <p className={cn("text-3xl font-semibold tabular-nums", entry.type === "income" && "text-emerald-700 dark:text-emerald-300")}>
           {entry.type === "income" ? "+" : "−"}
           {formatMYR(amount)}
         </p>

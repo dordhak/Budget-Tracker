@@ -155,7 +155,7 @@ export function EntryForm({ userId, today, rules, categories }: Props) {
     return (
       <Card>
         <CardContent className="space-y-4 pt-6">
-          <p role="status" className="font-medium text-emerald-800">
+          <p role="status" className="font-medium text-emerald-700 dark:text-emerald-300">
             Saved {fields.type === "income" ? "income" : "expense"} of RM {Number(fields.amount).toFixed(2)}
             {fields.merchant && ` (${fields.merchant})`}.
           </p>
@@ -231,7 +231,7 @@ export function EntryForm({ userId, today, rules, categories }: Props) {
               )}
               <div className="space-y-3">
                 {prefill && (
-                  <p className={cn("text-sm", prefill.lowConfidence ? "text-amber-800" : "text-muted-foreground")}>
+                  <p className={cn("text-sm", prefill.lowConfidence ? "text-amber-800 dark:text-amber-300" : "text-muted-foreground")}>
                     {prefill.lowConfidence
                       ? "Couldn't find a clear total. Please check the amount."
                       : "Pre-filled from the receipt. Please check the details."}

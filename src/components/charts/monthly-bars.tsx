@@ -4,7 +4,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import type { MonthPoint } from "@/lib/dashboard/aggregate";
 import { monthLabel } from "@/lib/month";
 import { formatMYR } from "@/lib/utils";
-import { compactMYR, EXPENSE_COLOR, INCOME_COLOR } from "./palette";
+import { chartMotion, compactMYR, EXPENSE_COLOR, INCOME_COLOR, TOOLTIP_STYLE } from "./palette";
 
 /** Income vs expenses per month. A visually hidden table carries the same data. */
 export function MonthlyBars({ points }: { points: MonthPoint[] }) {
@@ -27,11 +27,12 @@ export function MonthlyBars({ points }: { points: MonthPoint[] }) {
             <Tooltip
               formatter={(value, name) => [formatMYR(Number(value)), String(name)]}
               labelFormatter={(_, payload) => (payload?.[0]?.payload?.month ? monthLabel(payload[0].payload.month) : "")}
-              contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))", fontSize: 12 }}
+              contentStyle={TOOLTIP_STYLE}
+              cursor={{ fill: "hsl(var(--accent))", opacity: 0.4 }}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="Income" fill={INCOME_COLOR} radius={[3, 3, 0, 0]} isAnimationActive={false} />
-            <Bar dataKey="Expenses" fill={EXPENSE_COLOR} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="Income" fill={INCOME_COLOR} radius={[6, 6, 0, 0]} {...chartMotion(100)} />
+            <Bar dataKey="Expenses" fill={EXPENSE_COLOR} radius={[6, 6, 0, 0]} {...chartMotion(250)} />
           </BarChart>
         </ResponsiveContainer>
       </div>

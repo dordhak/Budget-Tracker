@@ -106,7 +106,7 @@ export function EditTransactionForm({ id, category, notes, suggestedKeyword, cat
         </p>
       )}
       {state.success && (
-        <p role="status" className="text-sm text-emerald-700">
+        <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">
           {state.success}
         </p>
       )}

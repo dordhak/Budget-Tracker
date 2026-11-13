@@ -10,16 +10,33 @@ interface StatCardProps {
   hint?: string;
   emptyText?: string;
   tone?: "default" | "positive" | "negative";
+  /** Highlighted card (teal tint), used for "Safe to spend". */
+  featured?: boolean;
 }
 
-export function StatCard({ title, value, icon: Icon, hint, emptyText = "—", tone = "default" }: StatCardProps) {
+export function StatCard({
+  title,
+  value,
+  icon: Icon,
+  hint,
+  emptyText = "—",
+  tone = "default",
+  featured = false,
+}: StatCardProps) {
   return (
-    <Card>
+    <Card className={cn("hover:-translate-y-0.5", featured && "border-primary/70 bg-primary/10")}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle as="p" className="text-sm font-medium text-muted-foreground">
+        <CardTitle as="p" className={cn("text-sm font-medium text-muted-foreground", featured && "text-primary")}>
           {title}
         </CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        <span
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-muted-foreground",
+            featured && "bg-primary/20 text-primary",
+          )}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
       </CardHeader>
       <CardContent>
         {value === null ? (
@@ -27,8 +44,8 @@ export function StatCard({ title, value, icon: Icon, hint, emptyText = "—", to
         ) : (
           <p
             className={cn(
-              "text-2xl font-semibold tabular-nums",
-              tone === "positive" && "text-emerald-700",
+              "text-2xl font-bold tabular-nums tracking-tight",
+              tone === "positive" && !featured && "text-emerald-700 dark:text-emerald-300",
               tone === "negative" && "text-destructive",
             )}
           >

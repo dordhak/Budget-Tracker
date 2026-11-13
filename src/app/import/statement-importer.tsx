@@ -389,7 +389,7 @@ export function StatementImporter({
               {parsed.statement.checks.map((c) => (
                 <li
                   key={c.id}
-                  className={cn(c.ok === false && "font-medium text-destructive", c.ok && "text-emerald-700")}
+                  className={cn(c.ok === false && "font-medium text-destructive", c.ok && "text-emerald-700 dark:text-emerald-300")}
                 >
                   <span aria-hidden="true">{c.ok === null ? "?" : c.ok ? "✓" : "✗"}</span>{" "}
                   <span className="sr-only">{c.ok === null ? "Not checked:" : c.ok ? "Passed:" : "Failed:"}</span>
@@ -399,7 +399,7 @@ export function StatementImporter({
             </ul>
 
             {parsed.statement.warnings.length > 0 && (
-              <ul className="list-disc space-y-1 pl-5 text-sm text-amber-800" aria-label="Warnings">
+              <ul className="list-disc space-y-1 pl-5 text-sm text-amber-800 dark:text-amber-300" aria-label="Warnings">
                 {parsed.statement.warnings.map((w) => (
                   <li key={w}>{w}</li>
                 ))}
@@ -422,14 +422,14 @@ export function StatementImporter({
             )}
 
             {counts.toConfirm > 0 && (
-              <p className="rounded-md border border-sky-600/30 bg-sky-50 p-3 text-sm text-sky-900">
+              <p className="rounded-md border border-sky-400/30 bg-sky-400/10 p-3 text-sm text-sky-800 dark:text-sky-300">
                 {counts.toConfirm} row{counts.toConfirm === 1 ? " has" : "s have"} more than one possible entry. The
                 closest date is pre-selected; check the &ldquo;Your entry&rdquo; column.
               </p>
             )}
 
             {notOnStatement.length > 0 && (
-              <details className="rounded-md border border-amber-600/30 bg-amber-50 p-3 text-sm text-amber-900">
+              <details className="rounded-md border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-900 dark:text-amber-200">
                 <summary className="cursor-pointer font-medium">
                   {notOnStatement.length} of your bank entries in this period {notOnStatement.length === 1 ? "isn't" : "aren't"}{" "}
                   on this statement
@@ -467,7 +467,7 @@ export function StatementImporter({
                 {rows.map(({ t, category, duplicate, selected, candidates, matchedEntryId, matchStatus }) => (
                   <TableRow
                     key={t.index}
-                    className={cn(duplicate && "text-muted-foreground", !duplicate && t.flags.length > 0 && "bg-amber-50")}
+                    className={cn(duplicate && "text-muted-foreground", !duplicate && t.flags.length > 0 && "bg-amber-400/10")}
                   >
                     <TableCell>
                       <input
@@ -484,7 +484,7 @@ export function StatementImporter({
                       <span className="block truncate text-sm font-medium">{t.merchant ?? "—"}</span>
                       <span className="block text-xs text-muted-foreground">{t.description}</span>
                       {t.flags.length > 0 && (
-                        <span className="mt-1 block text-xs text-amber-800">
+                        <span className="mt-1 block text-xs text-amber-800 dark:text-amber-300">
                           {t.flags.map((f) => FLAG_LABELS[f]).join(" · ")}
                         </span>
                       )}
@@ -493,7 +493,7 @@ export function StatementImporter({
                     <TableCell
                       className={cn(
                         "whitespace-nowrap text-right tabular-nums",
-                        t.type === "income" && !duplicate && "text-emerald-700",
+                        t.type === "income" && !duplicate && "text-emerald-700 dark:text-emerald-300",
                       )}
                     >
                       {t.type === "income" ? "+" : "−"}
@@ -505,7 +505,7 @@ export function StatementImporter({
                       ) : (
                         <div className="space-y-1">
                           <Select
-                            className={cn("h-8 text-xs", matchStatus === "suggested" && matchedEntryId && "border-sky-600")}
+                            className={cn("h-8 text-xs", matchStatus === "suggested" && matchedEntryId && "border-sky-400")}
                             value={matchedEntryId ?? ""}
                             disabled={!selected || isPending || Boolean(outcome)}
                             onChange={(e) => setSelection((s) => chooseMatch(s, t.index, e.target.value || null))}
@@ -522,7 +522,7 @@ export function StatementImporter({
                             })}
                           </Select>
                           {matchedEntryId && (
-                            <span className={matchStatus === "auto" ? "text-emerald-700" : "text-sky-800"}>
+                            <span className={matchStatus === "auto" ? "text-emerald-700 dark:text-emerald-300" : "text-sky-800 dark:text-sky-300"}>
                               {matchStatus === "auto" ? "Matched" : "Check this match"}
                             </span>
                           )}
@@ -538,14 +538,14 @@ export function StatementImporter({
             </Table>
 
             {outcome ? (
-              <div role="status" className="space-y-2 rounded-md border border-emerald-600/40 bg-emerald-50 p-4 text-sm">
-                <p className="font-medium text-emerald-800">
+              <div role="status" className="space-y-2 rounded-md border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm">
+                <p className="font-medium text-emerald-700 dark:text-emerald-300">
                   Imported {outcome.inserted} transaction{outcome.inserted === 1 ? "" : "s"}
                   {outcome.skipped > 0 && `, skipped ${outcome.skipped} already in your account`}
                   {outcome.matched > 0 && `, matched ${outcome.matched} to your entries`}.
                 </p>
                 {outcome.matchFailed > 0 && (
-                  <p className="text-amber-800">
+                  <p className="text-amber-800 dark:text-amber-300">
                     {outcome.matchFailed} match{outcome.matchFailed === 1 ? "" : "es"} couldn&apos;t be linked (the
                     entry changed or was already matched). You can link them from the entry page.
                   </p>

@@ -58,7 +58,7 @@ export function LoginForm({ next, initialError }: { next: string; initialError?:
         </p>
       )}
       {state.message && (
-        <p role="status" className="text-sm text-emerald-700">
+        <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">
           {state.message}
         </p>
       )}

@@ -3,25 +3,49 @@
 @tailwind utilities;
 
 @layer base {
+  /* Light theme (default tokens). The `.dark` class below switches to the navy theme. */
   :root {
-    --background: 0 0% 100%;
+    color-scheme: light;
+    --background: 210 40% 97%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
-    --primary: 222 47% 11%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
+    --primary: 175 84% 30%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 32% 94%;
     --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 40%;
-    --accent: 210 40% 96%;
+    --muted: 214 32% 94%;
+    --muted-foreground: 215 16% 38%;
+    --accent: 214 32% 92%;
     --accent-foreground: 222 47% 11%;
     --destructive: 0 72% 45%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 85%;
-    --ring: 222 47% 11%;
-    --radius: 0.5rem;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 89%;
+    --input: 214 25% 78%;
+    --ring: 175 84% 30%;
+    --radius: 0.75rem;
+  }
+
+  /* Dark navy fintech theme. Teal is the primary accent. */
+  .dark {
+    color-scheme: dark;
+    --background: 221 47% 9%;
+    --foreground: 210 40% 96%;
+    --card: 220 47% 12%;
+    --card-foreground: 210 40% 96%;
+    --primary: 172 66% 50%;
+    --primary-foreground: 190 70% 10%;
+    --secondary: 220 36% 17%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 220 36% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 220 40% 18%;
+    --accent-foreground: 210 40% 96%;
+    --destructive: 0 90% 68%;
+    --destructive-foreground: 221 47% 9%;
+    --border: 219 38% 19%;
+    --input: 219 33% 26%;
+    --ring: 172 66% 50%;
   }
 
   * {
@@ -30,5 +54,64 @@
 
   body {
     @apply bg-background text-foreground antialiased;
+  }
+
+  /*
+   * Smooth theme crossfade. The class is added for ~0.7s by the toggle only,
+   * so normal hover/focus transitions elsewhere are untouched.
+   */
+  html.theme-transition,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition:
+      background-color 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+      fill 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+      stroke 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.6s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html.theme-transition,
+    html.theme-transition * {
+      transition: none !important;
+    }
+  }
+
+  /* Staggered entrance: direct children of `.stagger` rise in one after another. */
+  .stagger > :not([data-inner]) {
+    animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .stagger > :nth-child(2) { animation-delay: 70ms; }
+  .stagger > :nth-child(3) { animation-delay: 140ms; }
+  .stagger > :nth-child(4) { animation-delay: 210ms; }
+  .stagger > :nth-child(5) { animation-delay: 280ms; }
+  .stagger > :nth-child(6) { animation-delay: 350ms; }
+  .stagger > :nth-child(7) { animation-delay: 420ms; }
+  .stagger > :nth-child(8) { animation-delay: 490ms; }
+  .stagger > :nth-child(n + 9) { animation-delay: 560ms; }
+
+  /* Same idea one level down (e.g. the four stat cards). */
+  .stagger-inner > * {
+    animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .stagger-inner > :nth-child(1) { animation-delay: 60ms; }
+  .stagger-inner > :nth-child(2) { animation-delay: 130ms; }
+  .stagger-inner > :nth-child(3) { animation-delay: 200ms; }
+  .stagger-inner > :nth-child(4) { animation-delay: 270ms; }
+
+  /* Respect reduced motion everywhere: no entrance, no movement. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
