@@ -20,6 +20,20 @@ const config: Config = {
         destructive: { DEFAULT: "hsl(var(--destructive))", foreground: "hsl(var(--destructive-foreground))" },
         card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
       },
+      keyframes: {
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(14px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
+        // No `to`: animates from fully hidden to whatever transform the element already has.
+        "progress-grow": { from: { transform: "translateX(-100%)" } },
+      },
+      animation: {
+        "fade-up": "fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards",
+        "fade-in": "fade-in 0.6s ease-out backwards",
+        "progress-grow": "progress-grow 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.25s backwards",
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

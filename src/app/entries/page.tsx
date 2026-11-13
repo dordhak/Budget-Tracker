@@ -153,7 +153,7 @@ export default async function EntriesPage({
                       <TableCell
                         className={cn(
                           "whitespace-nowrap text-right tabular-nums",
-                          row.type === "income" && "text-emerald-700",
+                          row.type === "income" && "text-emerald-700 dark:text-emerald-300",
                         )}
                       >
                         {row.type === "income" ? "+" : "−"}

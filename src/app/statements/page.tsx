@@ -153,7 +153,7 @@ export default async function StatementDashboard({
                       <TableCell className="text-right tabular-nums">
                         {b.balance ? formatMYR(b.balance.closingCents / 100) : "—"}
                         {b.balance && !b.balance.exact && (
-                          <span className="block text-xs font-normal text-amber-800">approximate (rows missing)</span>
+                          <span className="block text-xs font-normal text-amber-800 dark:text-amber-300">approximate (rows missing)</span>
                         )}
                       </TableCell>
                     </TableRow>

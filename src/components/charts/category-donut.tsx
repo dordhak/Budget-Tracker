@@ -3,7 +3,7 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { CategorySlice } from "@/lib/dashboard/aggregate";
 import { formatMYR } from "@/lib/utils";
-import { CATEGORY_COLORS } from "./palette";
+import { CATEGORY_COLORS, chartMotion, TOOLTIP_STYLE } from "./palette";
 
 /** Donut of spending by category. The legend list carries the data for screen readers. */
 export function CategoryDonut({ slices, totalCents }: { slices: CategorySlice[]; totalCents: number }) {
@@ -28,8 +28,8 @@ export function CategoryDonut({ slices, totalCents }: { slices: CategorySlice[];
               innerRadius="62%"
               outerRadius="95%"
               paddingAngle={slices.length > 1 ? 1.5 : 0}
-              stroke="hsl(var(--background))"
-              isAnimationActive={false}
+              stroke="hsl(var(--card))"
+              {...chartMotion(100)}
             >
               {data.map((s, i) => (
                 <Cell key={s.category} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
@@ -37,7 +37,8 @@ export function CategoryDonut({ slices, totalCents }: { slices: CategorySlice[];
             </Pie>
             <Tooltip
               formatter={(value, name) => [formatMYR(Number(value)), String(name)]}
-              contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))", fontSize: 12 }}
+              contentStyle={TOOLTIP_STYLE}
+              itemStyle={{ color: "hsl(var(--foreground))" }}
             />
           </PieChart>
         </ResponsiveContainer>

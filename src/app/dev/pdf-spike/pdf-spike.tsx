@@ -109,7 +109,7 @@ function ParsedView({ statement }: { statement: ParsedStatement }) {
 
       <ul className="space-y-1 text-sm" aria-label="Checksums">
         {statement.checks.map((c) => (
-          <li key={c.id} className={cn(c.ok === false && "font-medium text-destructive", c.ok && "text-emerald-700")}>
+          <li key={c.id} className={cn(c.ok === false && "font-medium text-destructive", c.ok && "text-emerald-700 dark:text-emerald-300")}>
             {c.ok === null ? "?" : c.ok ? "✓" : "✗"} {c.label}: expected {formatCents(c.expectedCents)}, got{" "}
             {formatCents(c.actualCents)}
           </li>
@@ -117,7 +117,7 @@ function ParsedView({ statement }: { statement: ParsedStatement }) {
       </ul>
 
       {statement.warnings.length > 0 && (
-        <ul className="list-disc space-y-1 pl-5 text-sm text-amber-700" aria-label="Warnings">
+        <ul className="list-disc space-y-1 pl-5 text-sm text-amber-800 dark:text-amber-300" aria-label="Warnings">
           {statement.warnings.map((w) => (
             <li key={w}>{w}</li>
           ))}
@@ -138,7 +138,7 @@ function ParsedView({ statement }: { statement: ParsedStatement }) {
         </TableHeader>
         <TableBody>
           {statement.transactions.map((t) => (
-            <TableRow key={t.index} className={cn(t.flags.length > 0 && "bg-amber-50")}>
+            <TableRow key={t.index} className={cn(t.flags.length > 0 && "bg-amber-400/10")}>
               <TableCell className="text-muted-foreground">
                 {t.index + 1} <span className="text-xs">p{t.page}</span>
               </TableCell>
@@ -146,7 +146,7 @@ function ParsedView({ statement }: { statement: ParsedStatement }) {
               <TableCell className="max-w-md text-xs">{t.description}</TableCell>
               <TableCell className="text-xs">{t.merchant ?? "—"}</TableCell>
               <TableCell
-                className={cn("whitespace-nowrap text-right tabular-nums", t.type === "income" && "text-emerald-700")}
+                className={cn("whitespace-nowrap text-right tabular-nums", t.type === "income" && "text-emerald-700 dark:text-emerald-300")}
               >
                 {t.type === "income" ? "+" : "−"}
                 {formatCents(t.amountCents)}

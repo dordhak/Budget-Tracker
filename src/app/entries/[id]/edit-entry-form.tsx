@@ -170,7 +170,7 @@ export function EditEntryForm({ entry, categories, today }: { entry: EditableEnt
         </p>
       )}
       {state.success && (
-        <p role="status" className="text-sm text-emerald-700">
+        <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">
           {state.success}
         </p>
       )}

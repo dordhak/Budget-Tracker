@@ -12,8 +12,8 @@ interface BudgetBarProps {
 
 const INDICATOR = {
   unset: "bg-muted-foreground",
-  ok: "bg-emerald-600",
-  warning: "bg-amber-500",
+  ok: "bg-primary",
+  warning: "bg-amber-400",
   over: "bg-destructive",
 } as const;
 
@@ -55,7 +55,7 @@ export function BudgetBar({ id, label, spent, limit, emptyText }: BudgetBarProps
         className={cn(
           "text-xs",
           p.status === "over" ? "font-medium text-destructive" : "text-muted-foreground",
-          p.status === "warning" && "text-amber-700",
+          p.status === "warning" && "text-amber-800 dark:text-amber-300",
         )}
       >
         {summary}

@@ -87,7 +87,7 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
           <h1 className="text-2xl font-semibold tracking-tight">{tx.merchant || tx.description || "Transaction"}</h1>
           <p className="text-sm text-muted-foreground">{tx.category}</p>
         </div>
-        <p className={cn("text-3xl font-semibold tabular-nums", tx.type === "income" && "text-emerald-700")}>
+        <p className={cn("text-3xl font-semibold tabular-nums", tx.type === "income" && "text-emerald-700 dark:text-emerald-300")}>
           {tx.type === "income" ? "+" : "−"}
           {formatMYR(amount)}
         </p>

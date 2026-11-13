@@ -47,8 +47,8 @@ export function LinkPanel({
   return (
     <div className="space-y-3 text-sm">
       {linked ? (
-        <div className="space-y-2 rounded-md border border-emerald-600/30 bg-emerald-50 p-3">
-          <p className="font-medium text-emerald-900">Matched to a statement row</p>
+        <div className="space-y-2 rounded-md border border-emerald-400/30 bg-emerald-400/10 p-3">
+          <p className="font-medium text-emerald-700 dark:text-emerald-300">Matched to a statement row</p>
           <p>
             <Link href={`/expenses/${linked.id}`} className="underline underline-offset-4">
               {linked.merchant || linked.description}
@@ -76,7 +76,7 @@ export function LinkPanel({
                     {" "}
                     · {day(c.date)} · {formatMYR(c.amount)}
                   </span>
-                  {c.exact && <span className="ml-2 text-xs text-emerald-700">Same amount</span>}
+                  {c.exact && <span className="ml-2 text-xs text-emerald-700 dark:text-emerald-300">Same amount</span>}
                 </span>
                 <Button
                   type="button"

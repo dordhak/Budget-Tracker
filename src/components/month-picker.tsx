@@ -16,7 +16,7 @@ export function MonthPicker({ basePath, month, current }: { basePath: string; mo
   const href = (m: string) => (m === current ? basePath : `${basePath}?month=${m}`);
   const next = shiftMonth(month, 1);
   const btn =
-    "inline-flex h-10 w-10 items-center justify-center rounded-md border hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    "inline-flex h-10 w-10 items-center justify-center rounded-full border bg-card hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
     <div className={cn("flex items-end gap-2", isPending && "opacity-70")}>
@@ -49,7 +49,7 @@ export function MonthPicker({ basePath, month, current }: { basePath: string; mo
         </span>
       )}
       {month !== current && (
-        <Link href={basePath} className="ml-1 self-center text-sm underline underline-offset-4">
+        <Link href={basePath} className="ml-1 self-center text-sm text-primary underline underline-offset-4">
           This month
         </Link>
       )}

@@ -7,9 +7,16 @@ export const metadata: Metadata = {
   description: "Personal budget tracker with Maybank statement import",
 };
 
+// Runs before first paint: saved choice wins, otherwise follow the OS. Static string, no user input.
+const THEME_INIT = `(function(){try{var s=localStorage.getItem("theme");var d=s?s==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;var r=document.documentElement;r.classList.toggle("dark",d);r.style.colorScheme=d?"dark":"light"}catch(e){}})()`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the init script changes <html> class/style before React hydrates.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+      </head>
       <body className="min-h-screen">
         <a
           href="#main"
@@ -18,8 +25,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <SiteHeader />
-        <main id="main" className="container py-8">
-          {children}
+        <main id="main" className="px-4 py-8 lg:px-10 lg:peer-[.sidebar]:pl-[calc(15rem+2.5rem)]">
+          <div className="mx-auto max-w-[1120px]">{children}</div>
         </main>
       </body>
     </html>

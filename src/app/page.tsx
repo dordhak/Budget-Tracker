@@ -89,10 +89,10 @@ export default async function BudgetDashboard({
   const recent = data.entries.filter((e) => e.date.startsWith(month)).slice(0, 6);
 
   return (
-    <div className="space-y-6">
+    <div className="stagger space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Budget</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Budget</h1>
           <p className="text-sm text-muted-foreground">
             {monthLabel(month)}: your entries plus statement rows you didn&apos;t log, each counted once.
           </p>
@@ -108,9 +108,9 @@ export default async function BudgetDashboard({
         </div>
       </div>
 
-      <section aria-label="Month totals" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Income" value={totals.incomeCents / 100} icon={TrendingUp} tone="positive" />
-        <StatCard title="Expenses" value={spent} icon={TrendingDown} />
+      <section aria-label="Month totals" data-inner className="stagger-inner grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Income" value={totals.incomeCents / 100} icon={TrendingUp} tone="positive" hint="Salary and other income" />
+        <StatCard title="Expenses" value={spent} icon={TrendingDown} hint="Entries plus unlogged statement rows" />
         <StatCard
           title="Balance"
           value={totals.netCents / 100}
@@ -123,6 +123,7 @@ export default async function BudgetDashboard({
           value={safeToSpend}
           icon={CircleDollarSign}
           tone={safeToSpend !== null && safeToSpend < 0 ? "negative" : "positive"}
+          featured={safeToSpend === null || safeToSpend >= 0}
           emptyText="Set an overall limit below"
           hint={overallLimit !== null ? `Overall limit ${formatMYR(overallLimit)}` : undefined}
         />
@@ -134,7 +135,7 @@ export default async function BudgetDashboard({
             <li>
               <Link
                 href={`/entries?month=${month}&status=awaiting`}
-                className="inline-flex rounded-full border border-amber-600/30 bg-amber-50 px-3 py-1 text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-amber-900 dark:text-amber-200 hover:bg-amber-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {status.awaiting} {status.awaiting === 1 ? "entry" : "entries"} awaiting statement
               </Link>
@@ -144,7 +145,7 @@ export default async function BudgetDashboard({
             <li>
               <Link
                 href={`/entries?month=${month}&status=awaiting`}
-                className="inline-flex rounded-full border border-destructive/30 bg-red-50 px-3 py-1 text-red-800 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex rounded-full border border-destructive/30 bg-red-400/10 px-3 py-1 text-red-800 dark:text-red-300 hover:bg-red-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {status.notOnStatement} not on statement
               </Link>
@@ -264,7 +265,7 @@ export default async function BudgetDashboard({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Recent entries</CardTitle>
-          <Link href={`/entries?month=${month}`} className="text-sm underline underline-offset-4">
+          <Link href={`/entries?month=${month}`} className="text-sm text-primary underline-offset-4 hover:underline">
             View all
           </Link>
         </CardHeader>
@@ -280,12 +281,12 @@ export default async function BudgetDashboard({
             <ul className="divide-y">
               {recent.map((e) => (
                 <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                  <Link href={`/entries/${e.id}`} className="min-w-0 flex-1 truncate font-medium underline-offset-4 hover:underline">
+                  <Link href={`/entries/${e.id}`} className="min-w-0 flex-1 truncate font-medium underline-offset-4 hover:text-primary hover:underline">
                     {e.merchant || e.category}
                   </Link>
                   <span className="text-muted-foreground">{dayFmt.format(new Date(`${e.date}T00:00:00Z`))}</span>
                   <MatchBadge state={entryMatchState(e)} />
-                  <span className={cn("w-28 text-right tabular-nums", e.type === "income" && "text-emerald-700")}>
+                  <span className={cn("w-28 text-right tabular-nums", e.type === "income" && "text-emerald-700 dark:text-emerald-300")}>
                     {e.type === "income" ? "+" : "−"}
                     {formatMYR(Number(e.amount))}
                   </span>
