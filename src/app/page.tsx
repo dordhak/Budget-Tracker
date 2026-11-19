@@ -8,6 +8,7 @@ import { BudgetBar } from "@/components/dashboard/budget-bar";
 import { CategoryBudgetForm } from "@/components/dashboard/category-budget-form";
 import { CategoryBudgetList, type BudgetRow } from "@/components/dashboard/category-budget-list";
 import { OverallLimitForm } from "@/components/dashboard/overall-limit-form";
+import { BalanceDisplay } from "@/components/dashboard/balance-display";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { MatchBadge } from "@/components/entries/match-badge";
 import { MonthPicker } from "@/components/month-picker";
@@ -108,16 +109,23 @@ export default async function BudgetDashboard({
         </div>
       </div>
 
-      <section aria-label="Month totals" data-inner className="stagger-inner grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section aria-label="Balance" className="px-1 py-2">
+        <p className="flex items-center gap-2 text-sm font-medium uppercase tracking-widest text-muted-foreground">
+          <Scale className="h-4 w-4" aria-hidden="true" />
+          Balance
+        </p>
+        <BalanceDisplay
+          month={month}
+          cents={totals.netCents}
+          text={formatMYR(totals.netCents / 100)}
+          className={cn("mt-2 text-5xl font-bold tracking-tight sm:text-6xl", totals.netCents < 0 && "text-destructive")}
+        />
+        <p className="mt-2 text-sm text-muted-foreground">Income minus expenses · {monthLabel(month)}</p>
+      </section>
+
+      <section aria-label="Month totals" data-inner className="stagger-inner grid gap-4 sm:grid-cols-3">
         <StatCard title="Income" value={totals.incomeCents / 100} icon={TrendingUp} tone="positive" hint="Salary and other income" />
         <StatCard title="Expenses" value={spent} icon={TrendingDown} hint="Entries plus unlogged statement rows" />
-        <StatCard
-          title="Balance"
-          value={totals.netCents / 100}
-          icon={Scale}
-          tone={totals.netCents < 0 ? "negative" : "default"}
-          hint="Income minus expenses"
-        />
         <StatCard
           title={month === current ? "Safe to spend" : "Left of limit"}
           value={safeToSpend}

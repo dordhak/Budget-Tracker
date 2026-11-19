@@ -102,6 +102,14 @@
   .stagger-inner > :nth-child(3) { animation-delay: 200ms; }
   .stagger-inner > :nth-child(4) { animation-delay: 270ms; }
 
+  /* Blur on the spinning number reels: soft while moving, sharp at rest. */
+  @keyframes reel-blur {
+    0% { filter: blur(0); }
+    18% { filter: blur(3px); }
+    62% { filter: blur(3px); }
+    100% { filter: blur(0); }
+  }
+
   /* Respect reduced motion everywhere: no entrance, no movement. */
   @media (prefers-reduced-motion: reduce) {
     *,
